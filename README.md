@@ -1,2 +1,3 @@
-# Inverto
-Application created in flutter to check your investments
+# inverto
+
+A new Flutter project.
