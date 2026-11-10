@@ -39,6 +39,8 @@ void main() {
     expect(find.text('Aportado este día'), findsOneWidget);
     expect(find.text('2 aportaciones'), findsOneWidget);
     expect(find.text('€ 50,00'), findsOneWidget);
+    await tester.ensureVisible(find.text('Aportado este d\u00eda'));
+    await tester.pumpAndSettle();
     expect(
       tester.getRect(find.text('Aportado este día')).bottom,
       lessThan(844),
@@ -53,6 +55,8 @@ void main() {
     tester.view.physicalSize = const Size(864, 648);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+    await tester.ensureVisible(find.text('Aportado este d\u00eda'));
+    await tester.pumpAndSettle();
     expect(
       tester.getRect(find.text('Aportado este día')).bottom,
       lessThan(648),

@@ -46,13 +46,18 @@ class PortfolioPage extends StatefulWidget {
 
 class _PortfolioPageState extends State<PortfolioPage>
     with WidgetsBindingObserver {
-  static const _investedKey = 'invested_total';
-  static const _valueKey = 'fund_value';
-  static const _contributionsKey = 'contributions';
-  static const _dailyDateKey = 'daily_date';
-  static const _dailyOpeningValueKey = 'daily_opening_value';
-  static const _todayContributionsKey = 'today_contributions';
-  static const _dailyHistoryKey = 'daily_history';
+  String _activeFund = 'default';
+  Map<String, String> _funds = {'default': 'Mi fondo'};
+  String _fundKey(String key) =>
+      _activeFund == 'default' ? key : 'fund_${_activeFund}_$key';
+
+  String get _investedKey => _fundKey('invested_total');
+  String get _valueKey => _fundKey('fund_value');
+  String get _contributionsKey => _fundKey('contributions');
+  String get _dailyDateKey => _fundKey('daily_date');
+  String get _dailyOpeningValueKey => _fundKey('daily_opening_value');
+  String get _todayContributionsKey => _fundKey('today_contributions');
+  String get _dailyHistoryKey => _fundKey('daily_history');
 
   double _invested = 0;
   double _fundValue = 0;
@@ -84,7 +89,7 @@ class _PortfolioPageState extends State<PortfolioPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadPortfolio();
+    _initializeFunds();
   }
 
   @override
@@ -97,6 +102,124 @@ class _PortfolioPageState extends State<PortfolioPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _rollDailyWindowIfNeeded();
+  }
+
+  Future<void> _initializeFunds() async {
+    final preferences = await SharedPreferences.getInstance();
+    final stored = preferences.getString('funds');
+    if (stored != null) {
+      _funds = Map<String, String>.from(jsonDecode(stored) as Map);
+    }
+    final selected = preferences.getString('active_fund');
+    if (_funds.containsKey(selected)) _activeFund = selected!;
+    await _loadPortfolio();
+  }
+
+  Future<void> _selectFund(String id) async {
+    if (id == _activeFund) return;
+    _dailyResetTimer?.cancel();
+    await _savePortfolio();
+    if (!mounted) return;
+    setState(() {
+      _activeFund = id;
+      _loading = true;
+      _focusedDay = DateTime.now();
+      _selectedDay = _focusedDay;
+    });
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('active_fund', id);
+    await _loadPortfolio();
+  }
+
+  Future<void> _editFund({bool create = false}) async {
+    final controller = TextEditingController(
+      text: create ? '' : _funds[_activeFund],
+    );
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(create ? 'Añadir fondo' : 'Renombrar fondo'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 60,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            labelText: 'Nombre del fondo',
+            hintText: 'Por ejemplo, Fondo global',
+          ),
+          onSubmitted: (value) {
+            if (value.trim().isNotEmpty) Navigator.pop(context, value.trim());
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                Navigator.pop(context, controller.text.trim());
+              }
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    controller.dispose();
+    if (name == null || !mounted) return;
+    final id = create
+        ? DateTime.now().microsecondsSinceEpoch.toString()
+        : _activeFund;
+    setState(() => _funds[id] = name);
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('funds', jsonEncode(_funds));
+    if (create) await _selectFund(id);
+  }
+
+  Widget _buildFundSelector() {
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            initialValue: _activeFund,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Fondo seleccionado',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
+            ),
+            items: _funds.entries
+                .map(
+                  (fund) => DropdownMenuItem(
+                    value: fund.key,
+                    child: Text(fund.value, overflow: TextOverflow.ellipsis),
+                  ),
+                )
+                .toList(),
+            onChanged: (id) {
+              if (id != null) _selectFund(id);
+            },
+          ),
+        ),
+        IconButton(
+          tooltip: 'Renombrar fondo',
+          onPressed: () => _editFund(),
+          icon: const Icon(Icons.edit_outlined),
+        ),
+        IconButton.filled(
+          tooltip: 'Añadir fondo',
+          onPressed: () => _editFund(create: true),
+          icon: const Icon(Icons.add),
+        ),
+      ],
+    );
   }
 
   Future<void> _loadPortfolio() async {
@@ -269,9 +392,9 @@ class _PortfolioPageState extends State<PortfolioPage>
     final shouldReset = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reiniciar Inverto'),
+        title: const Text('Reiniciar fondo'),
         content: const Text(
-          'Se borrarán el capital, el valor del fondo, las aportaciones y el historial diario de este dispositivo.',
+          'Se borrarán el capital, el valor del fondo, las aportaciones y el historial diario del fondo seleccionado. Los demás fondos se conservarán.',
         ),
         actions: [
           TextButton(
@@ -375,7 +498,7 @@ class _PortfolioPageState extends State<PortfolioPage>
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 8, 14, 0),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
                   child: _buildHeader(),
                 ),
                 Expanded(
@@ -417,11 +540,13 @@ class _PortfolioPageState extends State<PortfolioPage>
     return CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(22, 8, 22, 14),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
+              _buildFundSelector(),
+              const SizedBox(height: 24),
               _buildBalancePanel(gainColor, gainIsPositive),
-              const SizedBox(height: 6),
+              const SizedBox(height: 20),
               Row(
                 children: [
                   Expanded(
@@ -445,7 +570,7 @@ class _PortfolioPageState extends State<PortfolioPage>
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 20),
               Row(
                 children: [
                   Expanded(
@@ -454,7 +579,7 @@ class _PortfolioPageState extends State<PortfolioPage>
                       icon: const Icon(Icons.add_rounded),
                       label: const Text('Aportar'),
                       style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
+                        minimumSize: const Size.fromHeight(56),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -468,7 +593,7 @@ class _PortfolioPageState extends State<PortfolioPage>
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('Actualizar'),
                       style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
+                        minimumSize: const Size.fromHeight(56),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -477,9 +602,9 @@ class _PortfolioPageState extends State<PortfolioPage>
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 28),
               _buildSectionHeading('Calendario diario'),
-              const SizedBox(height: 4),
+              const SizedBox(height: 16),
               _buildDailyCalendar(),
               const SizedBox(height: 20),
               _buildActivityHeader(),
@@ -551,7 +676,7 @@ class _PortfolioPageState extends State<PortfolioPage>
   Widget _buildBalancePanel(Color gainColor, bool gainIsPositive) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF173B32),
         borderRadius: BorderRadius.circular(18),
@@ -575,7 +700,7 @@ class _PortfolioPageState extends State<PortfolioPage>
               _formatMoney(_fundValue),
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 30,
+                fontSize: 36,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -625,8 +750,8 @@ class _PortfolioPageState extends State<PortfolioPage>
     required Color color,
   }) {
     return Container(
-      constraints: const BoxConstraints(minHeight: 92),
-      padding: const EdgeInsets.all(10),
+      constraints: const BoxConstraints(minHeight: 120),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
@@ -958,10 +1083,9 @@ class _PortfolioPageState extends State<PortfolioPage>
     final gainColor = dailyGain >= 0
         ? const Color(0xFF176B52)
         : const Color(0xFFB3433D);
-    final compactCalendar = MediaQuery.sizeOf(context).height < 700;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 14),
+      padding: const EdgeInsets.fromLTRB(8, 16, 8, 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
@@ -975,8 +1099,8 @@ class _PortfolioPageState extends State<PortfolioPage>
             focusedDay: _focusedDay,
             locale: 'es_ES',
             startingDayOfWeek: StartingDayOfWeek.monday,
-            rowHeight: compactCalendar ? 20 : 28,
-            daysOfWeekHeight: compactCalendar ? 16 : 20,
+            rowHeight: 52,
+            daysOfWeekHeight: 32,
             selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
             eventLoader: _calendarEventsForDate,
             onDaySelected: (selectedDay, focusedDay) {
@@ -989,9 +1113,7 @@ class _PortfolioPageState extends State<PortfolioPage>
             headerStyle: HeaderStyle(
               titleCentered: true,
               formatButtonVisible: false,
-              headerPadding: compactCalendar
-                  ? EdgeInsets.zero
-                  : const EdgeInsets.symmetric(vertical: 4),
+              headerPadding: const EdgeInsets.symmetric(vertical: 12),
               titleTextStyle: const TextStyle(
                 color: Color(0xFF26342E),
                 fontSize: 14,
@@ -1032,7 +1154,7 @@ class _PortfolioPageState extends State<PortfolioPage>
               },
             ),
           ),
-          Divider(height: compactCalendar ? 8 : 14),
+          const Divider(height: 32),
           Row(
             children: [
               Expanded(
@@ -1087,9 +1209,9 @@ class _PortfolioPageState extends State<PortfolioPage>
             ],
           ),
           if (selectedContributions.isNotEmpty) ...[
-            SizedBox(height: compactCalendar ? 6 : 8),
+            const SizedBox(height: 16),
             const Divider(height: 1),
-            SizedBox(height: compactCalendar ? 6 : 8),
+            const SizedBox(height: 16),
             Row(
               children: [
                 const Icon(

@@ -22,7 +22,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Reiniciar datos'));
     await tester.pumpAndSettle();
-    expect(find.text('Reiniciar Inverto'), findsOneWidget);
+    expect(find.text('Reiniciar fondo'), findsOneWidget);
 
     await tester.tap(find.text('Reiniciar'));
     await tester.pumpAndSettle();
@@ -32,6 +32,6 @@ void main() {
     expect(preferences.getDouble('fund_value'), 0);
     expect(preferences.getString('contributions'), '[]');
     expect(preferences.getString('daily_history'), '[]');
-    expect(find.text('Reiniciar Inverto'), findsNothing);
+    expect(find.text('Reiniciar fondo'), findsNothing);
   });
 }
