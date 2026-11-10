@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +13,11 @@ import 'package:table_calendar/table_calendar.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'Inter',
+    ], await rootBundle.loadString('assets/fonts/OFL.txt'));
+  });
   await initializeDateFormatting('es_ES');
   runApp(const MainApp());
 }
@@ -26,11 +33,77 @@ class MainApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
+        fontFamily: 'Inter',
+        visualDensity: VisualDensity.standard,
         colorScheme: ColorScheme.fromSeed(
           seedColor: seedColor,
           primary: seedColor,
+          surface: Colors.white,
         ),
-        scaffoldBackgroundColor: const Color(0xFFF5F6F2),
+        scaffoldBackgroundColor: const Color(0xFFF4F6F5),
+        appBarTheme: const AppBarTheme(
+          systemOverlayStyle: SystemUiOverlayStyle.dark,
+        ),
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          height: 76,
+          indicatorColor: const Color(0xFFE4F3EC),
+          labelTextStyle: WidgetStateProperty.resolveWith(
+            (states) => TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 12,
+              fontWeight: states.contains(WidgetState.selected)
+                  ? FontWeight.w700
+                  : FontWeight.w500,
+              color: states.contains(WidgetState.selected)
+                  ? seedColor
+                  : const Color(0xFF7A8580),
+            ),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(color: Color(0xFFE2E9E5)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(color: Color(0xFFE2E9E5)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(color: seedColor, width: 1.5),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 18,
+          ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            elevation: 0,
+            textStyle: const TextStyle(
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+            ),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            backgroundColor: Colors.white,
+            side: const BorderSide(color: Color(0xFFD8E3DD)),
+            textStyle: const TextStyle(
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+            ),
+          ),
+        ),
       ),
       home: const PortfolioPage(),
     );
@@ -189,7 +262,7 @@ class _PortfolioPageState extends State<PortfolioPage>
             isExpanded: true,
             decoration: const InputDecoration(
               labelText: 'Fondo seleccionado',
-              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.account_balance_outlined, size: 20),
               contentPadding: EdgeInsets.symmetric(
                 horizontal: 16,
                 vertical: 16,
@@ -540,7 +613,7 @@ class _PortfolioPageState extends State<PortfolioPage>
     return CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
               _buildFundSelector(),
@@ -581,7 +654,7 @@ class _PortfolioPageState extends State<PortfolioPage>
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(56),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(18),
                         ),
                       ),
                     ),
@@ -595,7 +668,7 @@ class _PortfolioPageState extends State<PortfolioPage>
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size.fromHeight(56),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(18),
                         ),
                       ),
                     ),
@@ -618,17 +691,22 @@ class _PortfolioPageState extends State<PortfolioPage>
   }
 
   Widget _buildChartPage() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 16, 22, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeading('Plusvalía diaria'),
-          const SizedBox(height: 10),
-          _buildDailySummary(),
-          const SizedBox(height: 12),
-          Expanded(child: _buildHistoryChart()),
-        ],
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeading('Plusvalía diaria'),
+            const SizedBox(height: 16),
+            _buildDailySummary(),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: math.max(280, constraints.maxHeight - 220),
+              child: _buildHistoryChart(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -636,23 +714,30 @@ class _PortfolioPageState extends State<PortfolioPage>
   Widget _buildHeader() {
     return Row(
       children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: const Color(0xFF176B52),
-            borderRadius: BorderRadius.circular(13),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Image.asset(
+            'assets/branding/inverto-icon.png',
+            width: 50,
+            height: 50,
           ),
-          child: const Icon(Icons.show_chart_rounded, color: Colors.white),
         ),
         const SizedBox(width: 11),
         const Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('INVERTO', style: TextStyle(fontWeight: FontWeight.w800)),
               Text(
-                'Tu fondo de inversión',
+                'INVERTO',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                  letterSpacing: 2,
+                ),
+              ),
+              SizedBox(height: 3),
+              Text(
+                'Tu dinero, con perspectiva',
                 style: TextStyle(color: Color(0xFF737D78), fontSize: 12),
               ),
             ],
@@ -678,21 +763,43 @@ class _PortfolioPageState extends State<PortfolioPage>
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF173B32),
-        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF173F34), Color(0xFF0B2823)],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x2413392C),
+            blurRadius: 24,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'VALOR ACTUAL DEL FONDO',
-            style: TextStyle(
-              color: Color(0xFFB6CEC4),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
+          const Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Valor de tu fondo',
+                  style: TextStyle(
+                    color: Color(0xFFC0D8CC),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.account_balance_wallet_outlined,
+                color: Color(0xFF9BD7B9),
+                size: 22,
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 20),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
@@ -700,12 +807,13 @@ class _PortfolioPageState extends State<PortfolioPage>
               _formatMoney(_fundValue),
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 36,
-                fontWeight: FontWeight.w700,
+                fontSize: 42,
+                letterSpacing: -1.8,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 22),
           Row(
             children: [
               Icon(
@@ -754,7 +862,7 @@ class _PortfolioPageState extends State<PortfolioPage>
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(color: const Color(0xFFE7EAE5)),
       ),
       child: Column(
@@ -762,7 +870,14 @@ class _PortfolioPageState extends State<PortfolioPage>
         children: [
           Row(
             children: [
-              Icon(icon, size: 17, color: color),
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 17, color: color),
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -786,8 +901,9 @@ class _PortfolioPageState extends State<PortfolioPage>
               value,
               style: TextStyle(
                 color: color,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
+                fontSize: 22,
+                letterSpacing: -0.7,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -1088,7 +1204,7 @@ class _PortfolioPageState extends State<PortfolioPage>
       padding: const EdgeInsets.fromLTRB(8, 16, 8, 20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFE7EAE5)),
       ),
       child: Column(
@@ -1116,12 +1232,22 @@ class _PortfolioPageState extends State<PortfolioPage>
               headerPadding: const EdgeInsets.symmetric(vertical: 12),
               titleTextStyle: const TextStyle(
                 color: Color(0xFF26342E),
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
             ),
             calendarStyle: CalendarStyle(
-              cellMargin: const EdgeInsets.all(2),
+              cellMargin: const EdgeInsets.all(4),
+              defaultTextStyle: const TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+                color: Color(0xFF26342E),
+              ),
+              weekendTextStyle: const TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+                color: Color(0xFF7A8580),
+              ),
               outsideDaysVisible: false,
               selectedDecoration: const BoxDecoration(
                 color: Color(0xFF176B52),
