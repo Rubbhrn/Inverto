@@ -51,10 +51,6 @@ class _PortfolioPageState extends State<PortfolioPage>
 
   double get _gain => _fundValue - _invested;
   double get _returnPercentage => _invested == 0 ? 0 : _gain / _invested * 100;
-  double get _dailyGain =>
-      _fundValue - _dailyOpeningValue - _todayContributions;
-  double get _dailyReturnPercentage =>
-      _dailyOpeningValue == 0 ? 0 : _dailyGain / _dailyOpeningValue * 100;
   DailyRecord get _currentDailyRecord => DailyRecord(
     dateKey: _dailyDate,
     openingValue: _dailyOpeningValue,
@@ -619,9 +615,9 @@ class _PortfolioPageState extends State<PortfolioPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionHeading('Plusvalía diaria'),
+            _buildSectionHeading('Evolución del fondo'),
             const SizedBox(height: 16),
-            _buildDailySummary(),
+            _buildValueSummary(),
             const SizedBox(height: 24),
             SizedBox(
               height: math.max(280, constraints.maxHeight - 220),
@@ -841,83 +837,42 @@ class _PortfolioPageState extends State<PortfolioPage>
     );
   }
 
-  Widget _buildDailySummary() {
-    final isPositive = _dailyGain >= 0;
-    final color = isPositive
-        ? const Color(0xFF176B52)
-        : const Color(0xFFB3433D);
-    final formattedPercentage =
-        '${_dailyReturnPercentage.toStringAsFixed(2).replaceAll('.', ',')}%';
-
+  Widget _buildValueSummary() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFE7EAE5)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: isPositive
-                  ? const Color(0xFFEAF4EF)
-                  : const Color(0xFFF9EDEC),
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Icon(
-              isPositive
-                  ? Icons.wb_sunny_outlined
-                  : Icons.trending_down_rounded,
-              color: color,
-              size: 20,
+          Text(
+            _funds[_activeFund] ?? 'Mi fondo',
+            style: const TextStyle(
+              color: Color(0xFF69736E),
+              fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(width: 11),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Plusvalía de hoy',
-                  style: TextStyle(
-                    color: Color(0xFF26342E),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                SizedBox(height: 3),
-                Text(
-                  'Rendimiento diario, sin aportaciones',
-                  style: TextStyle(color: Color(0xFF89938D), fontSize: 11),
-                ),
-              ],
+          const SizedBox(height: 12),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              _formatMoney(_fundValue),
+              style: const TextStyle(
+                fontSize: 36,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -1,
+                color: Color(0xFF173F34),
+              ),
             ),
           ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                _formatMoney(_dailyGain),
-                style: TextStyle(
-                  color: color,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                formattedPercentage,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+          const SizedBox(height: 12),
+          const Text(
+            'Valor total del fondo, incluidas las aportaciones',
+            style: TextStyle(color: Color(0xFF69736E), fontSize: 13),
           ),
         ],
       ),
@@ -989,9 +944,9 @@ class _PortfolioPageState extends State<PortfolioPage>
 
     final spots = [
       for (var index = 0; index < records.length; index++)
-        FlSpot(index.toDouble(), records[index].gain),
+        FlSpot(index.toDouble(), records[index].closingValue),
     ];
-    final values = records.map((record) => record.gain);
+    final values = records.map((record) => record.closingValue);
     final lowestValue = values.reduce(math.min);
     final highestValue = values.reduce(math.max);
     final spread = highestValue - lowestValue;
@@ -999,8 +954,12 @@ class _PortfolioPageState extends State<PortfolioPage>
         ? math.max(highestValue.abs() * 0.05, 10.0)
         : spread * 0.12;
     final labelInterval = math.max(1, records.length ~/ 4).toDouble();
-    final minY = math.min(lowestValue - padding, 0).toDouble();
-    final maxY = math.max(highestValue + padding, 0).toDouble();
+    final minY =
+        (lowestValue >= 0
+                ? math.max(0, lowestValue - padding)
+                : lowestValue - padding)
+            .toDouble();
+    final maxY = highestValue + padding;
     final yAxisInterval = (maxY - minY) / 4;
     final yAxisFormat = NumberFormat.compactCurrency(
       locale: 'es_ES',
@@ -1018,6 +977,27 @@ class _PortfolioPageState extends State<PortfolioPage>
       ),
       child: LineChart(
         LineChartData(
+          lineTouchData: LineTouchData(
+            touchTooltipData: LineTouchTooltipData(
+              getTooltipItems: (spots) => spots.map((spot) {
+                final record = records[spot.spotIndex];
+                final date = DateFormat(
+                  'd MMM yyyy',
+                  'es_ES',
+                ).format(DateTime.parse(record.dateKey));
+                return LineTooltipItem(
+                  '$date\n${_formatMoney(record.closingValue)}',
+                  const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                );
+              }).toList(),
+              getTooltipColor: (_) => const Color(0xFF173F34),
+              fitInsideHorizontally: true,
+              fitInsideVertically: true,
+            ),
+          ),
           minX: 0,
           maxX: math.max(1, spots.length - 1).toDouble(),
           minY: minY,
@@ -1030,15 +1010,6 @@ class _PortfolioPageState extends State<PortfolioPage>
                   : const Color(0xFFECEFEC),
               strokeWidth: value == 0 ? 1.5 : 1,
             ),
-          ),
-          extraLinesData: ExtraLinesData(
-            horizontalLines: [
-              HorizontalLine(
-                y: 0,
-                color: const Color(0xFFCBD4CE),
-                strokeWidth: 1.5,
-              ),
-            ],
           ),
           borderData: FlBorderData(show: false),
           titlesData: FlTitlesData(
@@ -1095,7 +1066,7 @@ class _PortfolioPageState extends State<PortfolioPage>
           lineBarsData: [
             LineChartBarData(
               spots: spots,
-              isCurved: true,
+              isCurved: false,
               color: const Color(0xFF176B52),
               barWidth: 2.5,
               dotData: FlDotData(show: spots.length <= 14),

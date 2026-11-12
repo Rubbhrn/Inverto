@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui' show Size;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -48,7 +49,10 @@ void main() {
 
     await tester.tap(find.text('Gráfico'));
     await tester.pumpAndSettle();
-    expect(find.text('Plusvalía diaria'), findsOneWidget);
+    expect(find.text('Evolución del fondo'), findsOneWidget);
+    final chart = tester.widget<LineChart>(find.byType(LineChart));
+    expect(chart.data.lineBarsData.single.spots.single.y, 1100);
+    expect(chart.data.minY, greaterThan(0));
 
     await tester.tap(find.text('Principal'));
     await tester.pumpAndSettle();
